@@ -6,7 +6,7 @@ on:
       MANIFEST_BRANCH:
         description: 'OrangeFox Branch'
         required: true
-        default: '12.1'
+        default: '11.0'
         type: choice
         options:
         - 14.1
@@ -15,19 +15,19 @@ on:
       DEVICE_TREE:
         description: 'Custom Recovery Tree'
         required: true
-        default: 'https://github.com/kinguser981/android_device_xiaomi_marble-OFRP'
+        default: 'https://github.com/EinsteinXXL/hotdog'
       DEVICE_TREE_BRANCH:
         description: 'Custom Recovery Tree Branch'
         required: true
-        default: 'fox_12.1'
+        default: 'fox_11.0'
       DEVICE_PATH:
         description: 'Specify your device path.'
         required: true
-        default: 'device/xiaomi/marble'
+        default: 'device/oneplus/hotdog'
       DEVICE_NAME:
         description: 'Specify your Device Codename.'
         required: true
-        default: 'marble'
+        default: 'hotdog'
       BUILD_TARGET:
         description: 'Specify your Build Target'
         required: true
@@ -94,8 +94,8 @@ jobs:
       run: |
         mkdir -p ${GITHUB_WORKSPACE}/OrangeFox
         cd ${GITHUB_WORKSPACE}/OrangeFox
-        git config --global user.name "Samuel Kendall"
-        git config --global user.email "kinguser981@gmail.com"
+        git config --global user.name "EinsteinXXL"
+        git config --global user.email "EinsteinXXL@gmx.net"
         git clone https://gitlab.com/OrangeFox/sync.git
         cd sync
         ./orangefox_sync.sh --branch ${{ github.event.inputs.MANIFEST_BRANCH }} --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
@@ -106,6 +106,102 @@ jobs:
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
         cd ${{ github.event.inputs.DEVICE_PATH }}
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+    - name: Apply encryption bug fixes
+      run: |
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery
+        cat > /tmp/encryption-fixes.b64 << 'BASE64EOF'
+        ZGlmZiAtLWdpdCBhL2xpYnRhci9iYXNlbmFtZS5jIGIvbGlidGFyL2Jhc2VuYW1lLmMKaW5k
+        ZXggM2Y0ZDMxNS4uZDc5NjBiMSAxMDA2NDQKLS0tIGEvbGlidGFyL2Jhc2VuYW1lLmMKKysr
+        IGIvbGlidGFyL2Jhc2VuYW1lLmMKQEAgLTM5LDcgKzM5LDcgQEAgY2hhciAqCiBvcGVuYnNk
+        X2Jhc2VuYW1lKHBhdGgpCiAJY29uc3QgY2hhciAqcGF0aDsKIHsKLQlzdGF0aWMgY2hhciBi
+        bmFtZVtNQVhQQVRITEVOXTsKKwlzdGF0aWMgX190aHJlYWQgY2hhciBibmFtZVtNQVhQQVRI
+        TEVOXTSKCW5lZ2lzdGVyIGNvbnN0IGNoYXIgKmVuZHAsICpzdGFydHA7CgogCS8qIEVtcHR5
+        IG9yIE5VTEwgc3RyaW5nIGdldHMgdHJlYXRlZCBhcyAiLiIgKi8KZGlmZiAtLWdpdCBhL3R3
+        cnAtZnVuY3Rpb25zLmNwcCBiL3R3cnAtZnVuY3Rpb25zLmNwcAppbmRleCBhNzk5MmIzLi4y
+        NWE3OGJkIDEwMDc1NQotLS0gYS90d3JwLWZ1bmN0aW9ucy5jcHAKKysrIGIvdHdycC1mdW5j
+        dGlvbnMuY3BwCkBAIC0xMzE4LDggKzEzMTgsNiBAQCBib29sIFRXRnVuYzo6VHJ5X0RlY3J5
+        cHRpbmdfQmFja3VwKHN0cmluZyBSZXN0b3JlX1BhdGgsIHN0cmluZyBQYXNzd29yZCkgewog
+        CXsKIAkgIGlmIChUV0Z1bmc6OlRyeV9EZWNyeXB0aW5nX0ZpbGUoRmlsZW5hbWUsIFBhc3N3
+        b3JkKSA8IDIpCiAJICAgIHsKLQkgICAgICBEYXRhTWFuYWdlcjo6U2V0VmFsdWUoInR3X3Jl
+        c3RvcmVfcGFzc3dvcmQiLCAiIik7CS8vIENsZWFyIHRoZSBiYWQgcGFzc3dvcmQKLQkgICAg
+        ICBEYXRhTWFuYWdlcjo6U2V0VmFsdWUoInR3X3Jlc3RvcmVfZGlzcGxheSIsICIiKTsJLy8g
+        QWxzbyBjbGVhciB0aGUgZGlzcGxheSBtYXNrCiAJICAgICAgY2xvc2VkaXIoZCk7CiAJICAg
+        ICAgcmV0dXJuIGZhbHNlOwogCSAgICB9CmRpZmYgLS1naXQgYS90d3JwVGFyLmNwcCBiL3R3
+        cnBUYXIuY3BwCmluZGV4IDcxYTViMTUuLjg2Nzk2MzEgMTAwNzU1Ci0tLSBhL3R3cnBUYXIu
+        Y3BwCisrKyBiL3R3cnBUYXIuY3BwCkBAIC01MTcsMTEgKzUxNyw3IEBAIGludCB0d3JwVGFy
+        OjpleHRyYWN0VGFyRm9yaygpIHsKIAkJCQlzdHJpbmcgdGVtcDsKIAkJCQljaGFyIGFjdHVh
+        bF9maWxlbmFtZVsyNTVdOwogCQkJCXR3cnBUYXIgdGFyc1s5XTsKLQkJCQlwdGhyZWFkX3Qg
+        dGFyX3RocmVhZFs5XTsKLQkJCQlwdGhyZWFkX2F0dHJfdCB0YXR0cjsKLQkJCQl1bnNpZ25l
+        ZCB0aHJlYWRfY291bnQgPSAwLCBpLCBzdGFydF90aHJlYWRfaWQgPSAxOwotCQkJCWludCBy
+        ZXQsIHRocmVhZF9lcnJvciA9IDA7Ci0JCQkJdm9pZCAqdGhyZWFkX3JldHVybjsKKwkJCQl1
+        bnNpZ25lZCBpLCBzdGFydF90aHJlYWRfaWQgPSAxOwogCiAJCQkJYmFzZWZuID0gdGFyZm47
+        CiAJCQkJdGVtcCA9IGJhc2VmbiArICIlaS0lMDJpIjsKQEAgLTU0Nyw4NSArNTQzLDI2IEBA
+        IGludCB0d3JwVGFyOjpleHRyYWN0VGFyRm9yaygpIHsKIAkJCQl9IGVsc2UgewogCQkJCQlz
+        dGFydF90aHJlYWRfaWQgPSAwOwogCQkJCX0KLQkJCQkvLyBTdGFydCB0aHJlYWRpbmcgZW5j
+        cnlwdGVkIHJlc3RvcmVzCi0JCQkJaWYgKHB0aHJlYWRfYXR0cl9pbml0KCZ0YXR0cikpIHsK
+        LQkJCQkJTE9HSU5GTygiVW5hYmxlIHRvIHB0aHJlYWRfYXR0cl9pbml0XG4iKTsKLQkJCQkJ
+        Z3VpX2VycigicmVzdG9yZV9lcnJvcj1FcnJvciBkdXJpbmcgcmVzdG9yZSBwcm9jZXNzLiIp
+        OwotCQkJCQljbG9zZShwcm9ncmVzc19waXBlX2ZkKTsKLQkJCQkJX2V4aXQoLTEpOwotCQkJ
+        CX0KLQkJCQlpZiAocHRocmVhZF9hdHRyX3NldGRldGFjaHN0YXRlKCZ0YXR0ciwgUFRIUkVB
+        RF9DUkVBVEVfSk9JTkFCTEUpKSB7Ci0JCQkJCUxPR0lORk8oIkVycm9yIHNldHRpbmcgcHRo
+        cmVhZF9hdHRyX3NldGRldGFjaHN0YXRlXG4iKTsKLQkJCQkJZ3VpX2VycigicmVzdG9yZV9l
+        cnJvcj1FcnJvciBkdXJpbmcgcmVzdG9yZSBwcm9jZXNzLiIpOwotCQkJCQljbG9zZShwcm9n
+        cmVzc19waXBlX2ZkKTsKLQkJCQkJX2V4aXQoLTEpOwotCQkJCX0KLQkJCQlpZiAocHRocmVh
+        ZF9hdHRyX3NldHNjb3BlKCZ0YXR0ciwgUFRIUkVBRF9TQ09QRV9TWVNURU0pKSB7Ci0JCQKJ
+        CUxPR0lORk8oIkVycm9yIHNldHRpbmcgcHRocmVhZF9hdHRyX3NldHNjb3BlXG4iKTsKLQkJ
+        CQkJZ3VpX2VycigicmVzdG9yZV9lcnJvcj1FcnJvciBkdXJpbmcgcmVzdG9yZSBwcm9jZXNz
+        LiIpOwotCQkJCQljbG9zZShwcm9ncmVzc19waXBlX2ZkKTsKLQkJCQkJX2V4aXQoLTEpOwot
+        CQkJCX0KLQkJCQkvKmlmIChwdGhyZWFkX2F0dHJfc2V0c3RhY2tzaXplKCZ0YXR0ciwgNTI0
+        Mjg4KSkgewotCQkJCQlMT0dFUlIoIkVycm9yIHNldHRpbmcgcHRocmVhZF9hdHRyX3NldHN0
+        YWNrc2l6ZVxuIik7Ci0JCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwotCQkJCQlfZXhp
+        dCgtMSk7Ci0JCQkJfSovCisJCQkJLy8gU2VxdWVudGlhbCBlbmNyeXB0ZWQgcmVzdG9yZSAt
+        IGF2b2lkcyBmb3JrLWluLXB0aHJlYWQgZGVhZGxvY2sKIAkJCQlmb3IgKGkgPSBzdGFydF90
+        aHJlYWRfaWQ7IGkgPCA5OyBpKyspIHsKIAkJCQkJc3ByaW50ZihhY3R1YWxfZmlsZW5hbWUs
+        IHRlbXAuY19zdHIoKSwgaSwgMCk7CiAJCQkJCWlmIChUV0Z1bmc6OlBhdGhfRXhpc3RzKGFj
+        dHVhbF9maWxlbmFtZSkpIHsKLQkJCQkJCXRocmVhZF9jb3VudCsrOwogCQkJCQkJdGFyc1tp
+        XS5iYXNlZm4gPSBiYXNlZm47CiAJCQkJCQl0YXJzW2ldLnNldHBhc3N3b3JkKHBhc3N3b3Jk
+        KTsKIAkJCQkJCXRhcnNbaV0udGhyZWFkX2lkID0gaTsKIAkJCQkJCXRhcnNbaV0ucHJvZ3Jl
+        c3NfcGlwZV9mZCA9IHByb2dyZXNzX3BpcGVfZmQ7CiAJCQkJCQl0YXJzW2ldLnBhcnRfc2V0
+        dGluZ3MgPSBwYXJ0X3NldHRpbmdzOwotCQkJCQkJTE9HSU5GTygiQ3JlYXRpbmcgZXh0cmFj
+        dCB0aHJlYWQgSUQgJWlcbiIsIGkpOwotCQkJCQkJcmV0ID0gcHRocmVhZF9jcmVhdGUoJnRh
+        cl90aHJlYWRbaV0sICZ0YXR0ciwgZXh0cmFjdE11bHRpLCAodm9pZCopJnRhcnNbaV0pOwot
+        CQkJCQkJaWYgKHJldCkgewotCQkJCQkJCUxPR0lORk8oIlVuYWJsZSB0byBjcmVhdGUgJWkg
+        dGhyZWFkIGZvciBleHRyYWN0aW9uISAlaVxuQ29udGludWluZyBpbiBzYW1lIHRocmVhZCAo
+        cmVzdG9yZSB3aWxsIGJlIHNsb3dlcikuXG4iLCBpLCByZXQpOwotCQkJCQkJCWlmIChleHRy
+        YWN0TXVsdGkoKHZvaWQqKSZ0YXJzW2ldKSAhPSAwKSB7Ci0JCQkJCQkJCUxPR0lORk8oIkVy
+        cm9yIGV4dHJhY3RpbmcgYmFja3VwIGluIHRocmVhZCAlaS5cbiIsIGkpOwotCQkJCQkJCQln
+        dWlfZXJyKCJyZXN0b3JlX2Vycm9yPUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nlc3MuIik7
+        Ci0JCQkJCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwotCQkJCQkJCQlfZXhpdCgtMSk7
+        Ci0JCQkJCQkJfSBlbHNlIHsKLQkJCQkJCQkJdGFyc1tpXS50aHJlYWRfaWQgPSBpICsgMTsK
+        LQkJCQkJCQl9Ci0JCQkJCQl9Ci0JCQkJCQl1c2xlZXAoMTAwMDAwKTsgLy8gTmVlZCBhIHNo
+        b3J0IGRlbGF5IGJlZm9yZSBzdGFydGluZyB0aGUgbmV4dCB0aHJlYWQgb3IgdGhlIHRocmVh
+        ZHMgd2lsbCBuZXZlciBmaW5pc2ggZm9yIHNvbWUgcmVhc29uLgotCQkJCQl9IGVsc2Ugewot
+        CQkJCQkJYnJlYWs7Ci0JCQkJCX0KLQkJCQl9Ci0JCQkJZm9yIChpID0gc3RhcnRfdGhyZWFk
+        X2lkOyBpIDwgdGhyZWFkX2NvdW50ICsgc3RhcnRfdGhyZWFkX2lkOyBpKyspIHsKLQkJCQkJ
+        aWYgKHRhcnNbaV0udGhyZWFkX2lkID09IGkpIHsKLQkJCQkJCWlmIChwdGhyZWFkX2pvaW4o
+        dGFyX3RocmVhZFtpXSwgJnRocmVhZF9yZXR1cm4pKSB7Ci0JCQkJCQkJTE9HSU5GTygiRXJy
+        b3Igam9pbmluZyB0aHJlYWQgJWlcbiIsIGkpOwotCQkJCQkJCWd1aV9lcnIoInJlc3RvcmVf
+        ZXJyb3I9RXJyb3IgZHVyaW5nIHJlc3RvcmUgcHJvY2Vzcy4iKTsKLQkJCQkJCQljbG9zZShw
+        cm9ncmVzc19waXBlX2ZkKTsKLQkJCQkJCQlfZXhpdCgtMSk7Ci0JCQkJCQl9IGVsc2UgewotCQkJ
+        CQkJCUxPR0lORk8oIkpvaW5lZCB0aHJlYWQgJWkuXG4iLCBpKTsKLQkJCQkJCQlyZXQgPSAo
+        aW50KShpbnRwdHJfdCl0aHJlYWRfcmV0dXJuOwotCQkJCQkJCWlmIChyZXQgIT0gMCkgewot
+        CQkJCQkJCQl0aHJlYWRfZXJyb3IgPSAxOwotCQkJCQkJCQlMT0dJTkZPKCJUaHJlYWQgJWkg
+        cmV0dXJuZWQgYW4gZXJyb3IgJWkuXG4iLCBpLCByZXQpOwotCQkJCQkJCQlndWlfZXJyKCJy
+        ZXN0b3JlX2Vycm9yPUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nlc3MuIik7Ci0JCQkJCQkJ
+        CWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwotCQkJCQkJCQlfZXhpdCgtMSk7Ci0JCQkJCQkJ
+        fQogCQkJCQkJfQogCQkJCQl9IGVsc2UgewotCQkJCQkJTE9HSU5GTygiU2tpcHBpbmcgam9pbmlu
+        ZyB0aHJlYWQgJWkgYmVjYXVzZSBvZiBwdGhyZWFkIGZhaWx1cmUuXG4iLCBpKTsKKwkJCQkJ
+        CWJyZWFrOwogCQkJCQl9CiAJCQkJfQotCQkJCWlmICh0aHJlYWRfZXJyb3IpIHsKLQkJCQkJ
+        TE9HSU5GTygiRXJyb3IgcmV0dXJuZWQgYnkgb25lIG9yIG1vcmUgdGhyZWFkcy5cbiIpOwot
+        CQkJCQlndWlfZXJyKCJyZXN0b3JlX2Vycm9yPUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nl
+        c3MuIik7Ci0JCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwotCQkJCQlfZXhpdCgtMSk7
+        Ci0JCQkJfQogCQkJCUxPR0lORk8oIkZpbmlzaGVkIGVuY3J5cHRlZCByZXN0b3JlLlxuIik7
+        CiAJCQkJY2xvc2UocHJvZ3Jlc3NfcGlwZV9mZCk7CiAJCQkJX2V4aXQoMCk7Cg==
+        BASE64EOF
+        base64 -d /tmp/encryption-fixes.b64 > /tmp/encryption-fixes.patch
+        patch -p1 < /tmp/encryption-fixes.patch
+        echo "Encryption bug fixes applied successfully."
 
     - name: Check Manifest Branch
       uses: haya14busa/action-cond@v1
@@ -124,7 +220,7 @@ jobs:
         set -e
         ${{ steps.fox_branch.outputs.value }}
 
-    - name: Set Build Date # Output will be use in Release
+    - name: Set Build Date
       run: |
         echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
         DEVICE_TREE_URL="${{ github.event.inputs.DEVICE_TREE }}"
