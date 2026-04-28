@@ -99,7 +99,7 @@ jobs:
         export PATH=~/bin:$PATH
         mkdir fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         cd fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        repo init -u https://gitlab.com/OrangeFox/Manifests.git \
+        repo init -u https://gitlab.com/OrangeFox/Manifest.git \
           -b fox_${{ github.event.inputs.MANIFEST_BRANCH }} \
           --depth=1 \
           -g default,-mips,-darwin,-notdefault
