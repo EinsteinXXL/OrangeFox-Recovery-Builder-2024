@@ -147,20 +147,12 @@ jobs:
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
         set -e
-        BUILD_RESULT=$(${{ steps.fox_branch.outputs.value }})
-        if [ $? -ne 0 ]; then
-            echo "Build failed with exit code: $?"
-            exit 1
+        eval "${{ steps.fox_branch.outputs.value }}"
+        BUILD_EXIT=$?
+        if [ $BUILD_EXIT -ne 0 ]; then
+          echo "Build failed with exit code: $BUILD_EXIT"
+          exit $BUILD_EXIT
         fi
-
-    - name: Set Build Date
-      run: |
-        echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
-        DEVICE_TREE_URL="${{ github.event.inputs.DEVICE_TREE }}"
-        if [[ "${DEVICE_TREE_URL}" == *.git ]]; then
-          DEVICE_TREE_URL="${DEVICE_TREE_URL%.git}"
-        fi
-        echo "DEVICE_TREE_URL=${DEVICE_TREE_URL}" >> $GITHUB_ENV
 
     - name: Debug Build Output
       run: |
@@ -171,6 +163,16 @@ jobs:
         ls -lR out/target/product/${{ github.event.inputs.DEVICE_NAME }}/ 2>/dev/null || echo "Directory does not exist"
         echo "=== Build log tail ==="
         tail -100 out/verbose.log 2>/dev/null || echo "No verbose.log found"
+      continue-on-error: true
+
+    - name: Set Build Date
+      run: |
+        echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+        DEVICE_TREE_URL="${{ github.event.inputs.DEVICE_TREE }}"
+        if [[ "${DEVICE_TREE_URL}" == *.git ]]; then
+          DEVICE_TREE_URL="${DEVICE_TREE_URL%.git}"
+        fi
+        echo "DEVICE_TREE_URL=${DEVICE_TREE_URL}" >> $GITHUB_ENV
 
     - name: Check if Recovery Exist
       run: |
