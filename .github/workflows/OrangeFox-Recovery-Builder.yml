@@ -99,8 +99,10 @@ jobs:
         export PATH=~/bin:$PATH
         mkdir fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         cd fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        TWRP_BRANCH="twrp-${{ github.event.inputs.MANIFEST_BRANCH }}"
+        TWRP_BRANCH="${TWRP_BRANCH%.0}"
         repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
-          -b twrp-${{ github.event.inputs.MANIFEST_BRANCH }} \
+          -b "${TWRP_BRANCH}" \
           --depth=1 \
           -g default,-mips,-darwin,-notdefault
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
