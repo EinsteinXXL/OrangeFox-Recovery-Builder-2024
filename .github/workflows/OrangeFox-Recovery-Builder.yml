@@ -197,22 +197,51 @@ jobs:
     - name: Rename the Recovery
       run: |
         cd ${{ env.FILE_PATH }}/
-        if [ "${{ github.event.inputs.BUILD_TARGET }}" = "boot" ]; then
-        mv OrangeFox*.img boot.img
-        echo "RECOVERY_TYPE=boot" >> $GITHUB_ENV
-        echo "boot.img file found!"
-        elif [ "${{ github.event.inputs.BUILD_TARGET }}" = "recovery" ]; then
-        mv OrangeFox*.img recovery.img
-        echo "RECOVERY_TYPE=recovery" >> $GITHUB_ENV
-        echo "recovery.img file found!"
-        elif [ "${{ github.event.inputs.BUILD_TARGET }}" = "vendorboot" ]; then
-        mv OrangeFox*.img vendor_boot.img
-        echo "RECOVERY_TYPE=vendor_boot" >> $GITHUB_ENV
-        echo "vendor_boot.img file found!"
-        else
-        echo "No Recovery file found!"
-        fi
-      continue-on-error: true
+        case "${{ github.event.inputs.BUILD_TARGET }}" in
+          boot)
+            if [ -f boot.img ]; then
+              echo "RECOVERY_TYPE=boot" >> $GITHUB_ENV
+              echo "boot.img already exists!"
+            elif [ -f OrangeFox*.img 2>/dev/null ]; then
+              mv OrangeFox*.img boot.img
+              echo "RECOVERY_TYPE=boot" >> $GITHUB_ENV
+              echo "boot.img (renamed from OrangeFox)"
+            else
+              echo "ERROR: No boot image found!"
+              exit 1
+            fi
+            ;;
+          recovery)
+            if [ -f recovery.img ]; then
+              echo "RECOVERY_TYPE=recovery" >> $GITHUB_ENV
+              echo "recovery.img already exists!"
+            elif [ -f OrangeFox*.img 2>/dev/null ]; then
+              mv OrangeFox*.img recovery.img
+              echo "RECOVERY_TYPE=recovery" >> $GITHUB_ENV
+              echo "recovery.img (renamed from OrangeFox)"
+            else
+              echo "ERROR: No recovery image found!"
+              exit 1
+            fi
+            ;;
+          vendorboot)
+            if [ -f vendor_boot.img ]; then
+              echo "RECOVERY_TYPE=vendor_boot" >> $GITHUB_ENV
+              echo "vendor_boot.img already exists!"
+            elif [ -f OrangeFox*.img 2>/dev/null ]; then
+              mv OrangeFox*.img vendor_boot.img
+              echo "RECOVERY_TYPE=vendor_boot" >> $GITHUB_ENV
+              echo "vendor_boot.img (renamed from OrangeFox)"
+            else
+              echo "ERROR: No vendorboot image found!"
+              exit 1
+            fi
+            ;;
+          *)
+            echo "ERROR: Unknown BUILD_TARGET"
+            exit 1
+            ;;
+        esac
 
     - name: Include Recovery Installer
       run: |
