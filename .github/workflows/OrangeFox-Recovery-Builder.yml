@@ -9,8 +9,6 @@ on:
         default: '11.0'
         type: choice
         options:
-        - 14.1
-        - 12.1
         - 11.0
       DEVICE_TREE:
         description: 'Custom Recovery Tree'
@@ -90,15 +88,22 @@ jobs:
         sudo bash setup/android_build_env.sh
 
     - name: Set-up Manifest
-      if: github.event.inputs.MANIFEST_BRANCH == '11.0' || github.event.inputs.MANIFEST_BRANCH == '12.1' || github.event.inputs.MANIFEST_BRANCH == '14.1'
       run: |
         mkdir -p ${GITHUB_WORKSPACE}/OrangeFox
         cd ${GITHUB_WORKSPACE}/OrangeFox
         git config --global user.name "EinsteinXXL"
         git config --global user.email "EinsteinXXL@gmx.net"
-        git clone https://gitlab.com/OrangeFox/sync.git
-        cd sync
-        ./orangefox_sync.sh --branch ${{ github.event.inputs.MANIFEST_BRANCH }} --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        export PATH=~/bin:$PATH
+        mkdir fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        cd fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        repo init -u https://gitlab.com/OrangeFox/Manifests.git \
+          -b fox_${{ github.event.inputs.MANIFEST_BRANCH }} \
+          --depth=1 \
+          -g default,-mips,-darwin,-notdefault
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         echo "--- Sync abgeschlossen. Verzeichnisinhalt: ---"
         ls -la ${GITHUB_WORKSPACE}/OrangeFox/
         if [ ! -d "${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery" ]; then
@@ -107,179 +112,23 @@ jobs:
         fi
         echo "Sync erfolgreich verifiziert."
 
+    - name: Use patched Recovery Source
+      run: |
+        rm -rf ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery
+        git clone https://github.com/EinsteinXXL/orangefox-recovery \
+          -b fox_${{ github.event.inputs.MANIFEST_BRANCH }} \
+          --depth=1 \
+          ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery
+        echo "Gepatchte Recovery-Source eingespielt:"
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery
+        git log --oneline -6
+
     - name: Clone Device Tree
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
         cd ${{ github.event.inputs.DEVICE_PATH }}
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
-
-    - name: Apply encryption bug fixes
-      run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/bootable/recovery
-        cat > /tmp/encryption-fixes.b64 << 'BASE64EOF'
-        ZGlmZiAtLWdpdCBhL2xpYnRhci9iYXNlbmFtZS5jIGIvbGlidGFyL2Jhc2VuYW1lLmMKaW5kZXgg
-        M2Y0ZDMxNS4uZDc5NjBiMSAxMDA2NDQKLS0tIGEvbGlidGFyL2Jhc2VuYW1lLmMKKysrIGIvbGli
-        dGFyL2Jhc2VuYW1lLmMKQEAgLTM5LDcgKzM5LDcgQEAgY2hhciAqCiBvcGVuYnNkX2Jhc2VuYW1l
-        KHBhdGgpCiAJY29uc3QgY2hhciAqcGF0aDsKIHsKLQlzdGF0aWMgY2hhciBibmFtZVtNQVhQQVRI
-        TEVOXTsKKwlzdGF0aWMgX190aHJlYWQgY2hhciBibmFtZVtNQVhQQVRITEVOXTsKIAlyZWdpc3Rl
-        ciBjb25zdCBjaGFyICplbmRwLCAqc3RhcnRwOwogCiAJLyogRW1wdHkgb3IgTlVMTCBzdHJpbmcg
-        Z2V0cyB0cmVhdGVkIGFzICIuIiAqLwpkaWZmIC0tZ2l0IGEvdHdycC1mdW5jdGlvbnMuY3BwIGIv
-        dHdycC1mdW5jdGlvbnMuY3BwCmluZGV4IGE3OTkyYjMuLjI1YTc4YmQgMTAwNzU1Ci0tLSBhL3R3
-        cnAtZnVuY3Rpb25zLmNwcAorKysgYi90d3JwLWZ1bmN0aW9ucy5jcHAKQEAgLTEzMTgsOCArMTMx
-        OCw2IEBAIGJvb2wgVFdGdW5jOjpUcnlfRGVjcnlwdGluZ19CYWNrdXAoc3RyaW5nIFJlc3RvcmVf
-        UGF0aCwgc3RyaW5nIFBhc3N3b3JkKSB7CiAJewogCSAgaWYgKFRXRnVuYzo6VHJ5X0RlY3J5cHRp
-        bmdfRmlsZShGaWxlbmFtZSwgUGFzc3dvcmQpIDwgMikKIAkgICAgewotCSAgICAgIERhdGFNYW5h
-        Z2VyOjpTZXRWYWx1ZSgidHdfcmVzdG9yZV9wYXNzd29yZCIsICIiKTsJLy8gQ2xlYXIgdGhlIGJh
-        ZCBwYXNzd29yZAotCSAgICAgIERhdGFNYW5hZ2VyOjpTZXRWYWx1ZSgidHdfcmVzdG9yZV9kaXNw
-        bGF5IiwgIiIpOwkvLyBBbHNvIGNsZWFyIHRoZSBkaXNwbGF5IG1hc2sKIAkgICAgICBjbG9zZWRp
-        cihkKTsKIAkgICAgICByZXR1cm4gZmFsc2U7CiAJICAgIH0KZGlmZiAtLWdpdCBhL3R3cnBUYXIu
-        Y3BwIGIvdHdycFRhci5jcHAKaW5kZXggNzFhNWIxNS4uNWQ0MzlkZiAxMDA3NTUKLS0tIGEvdHdy
-        cFRhci5jcHAKKysrIGIvdHdycFRhci5jcHAKQEAgLTE2MiwxNiArMTYyLDEzIEBAIGludCB0d3Jw
-        VGFyOjpjcmVhdGVUYXJGb3JrKHBpZF90ICp0YXJfZm9ya19waWQpIHsKIAkJCXN0cnVjdCBkaXJl
-        bnQqIGRlOwogCQkJdW5zaWduZWQgbG9uZyBsb25nIHJlZ3VsYXJfc2l6ZSA9IDAsIGVuY3J5cHRf
-        c2l6ZSA9IDAsIHRhcmdldF9zaXplID0gMCwgdG90YWxfc2l6ZTsKIAkJCXVuc2lnbmVkIGVuY190
-        aHJlYWRfaWQgPSAxLCByZWd1bGFyX3RocmVhZF9pZCA9IDAsIGksIHN0YXJ0X3RocmVhZF9pZCA9
-        IDEsIGNvcmVfY291bnQgPSAxOwotCQkJaW50IGl0ZW1fbGVuLCByZXQsIHRocmVhZF9lcnJvciA9
-        IDA7CisJCQlpbnQgaXRlbV9sZW4sIHJldDsKIAkJCXN0ZDo6dmVjdG9yPFRhckxpc3RTdHJ1Y3Q+
-        IFJlZ3VsYXJMaXN0OwogCQkJc3RkOjp2ZWN0b3I8VGFyTGlzdFN0cnVjdD4gRW5jcnlwdExpc3Q7
-        CiAJCQlzdHJpbmcgRmlsZU5hbWU7CiAJCQlzdHJ1Y3QgVGFyTGlzdFN0cnVjdCBUYXJJdGVtOwog
-        CQkJdHdycFRhciByZWcsIGVuY1s5XTsKIAkJCXN0cnVjdCBzdGF0IHN0OwotCQkJcHRocmVhZF90
-        IGVuY190aHJlYWRbOV07Ci0JCQlwdGhyZWFkX2F0dHJfdCB0YXR0cjsKLQkJCXZvaWQgKnRocmVh
-        ZF9yZXR1cm47CiAKIAkJCWNvcmVfY291bnQgPSBzeXNjb25mKF9TQ19OUFJPQ0VTU09SU19DT05G
-        KTsKIAkJCWlmIChjb3JlX2NvdW50ID4gOCkKQEAgLTMwMiwzMSArMjk5LDcgQEAgaW50IHR3cnBU
-        YXI6OmNyZWF0ZVRhckZvcmsocGlkX3QgKnRhcl9mb3JrX3BpZCkgewogCQkJCX0KIAkJCX0KIAot
-        CQkJaWYgKHB0aHJlYWRfYXR0cl9pbml0KCZ0YXR0cikpIHsKLQkJCQlMT0dJTkZPKCJVbmFibGUg
-        dG8gcHRocmVhZF9hdHRyX2luaXRcbiIpOwotCQkJCWd1aV9lcnIoImJhY2t1cF9lcnJvcj1FcnJv
-        ciBjcmVhdGluZyBiYWNrdXAuIik7Ci0JCQkJY2xvc2UocHJvZ3Jlc3NfcGlwZVsxXSk7Ci0JCQkJ
-        X2V4aXQoLTEpOwotCQkJfQotCQkJaWYgKHB0aHJlYWRfYXR0cl9zZXRkZXRhY2hzdGF0ZSgmdGF0
-        dHIsIFBUSFJFQURfQ1JFQVRFX0pPSU5BQkxFKSkgewotCQkJCUxPR0lORk8oIkVycm9yIHNldHRp
-        bmcgcHRocmVhZF9hdHRyX3NldGRldGFjaHN0YXRlXG4iKTsKLQkJCQlndWlfZXJyKCJiYWNrdXBf
-        ZXJyb3I9RXJyb3IgY3JlYXRpbmcgYmFja3VwLiIpOwotCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVb
-        MV0pOwotCQkJCV9leGl0KC0xKTsKLQkJCX0KLQkJCWlmIChwdGhyZWFkX2F0dHJfc2V0c2NvcGUo
-        JnRhdHRyLCBQVEhSRUFEX1NDT1BFX1NZU1RFTSkpIHsKLQkJCQlMT0dJTkZPKCJFcnJvciBzZXR0
-        aW5nIHB0aHJlYWRfYXR0cl9zZXRzY29wZVxuIik7Ci0JCQkJZ3VpX2VycigiYmFja3VwX2Vycm9y
-        PUVycm9yIGNyZWF0aW5nIGJhY2t1cC4iKTsKLQkJCQljbG9zZShwcm9ncmVzc19waXBlWzFdKTsK
-        LQkJCQlfZXhpdCgtMSk7Ci0JCQl9Ci0JCQkvKmlmIChwdGhyZWFkX2F0dHJfc2V0c3RhY2tzaXpl
-        KCZ0YXR0ciwgNTI0Mjg4KSkgewotCQkJCUxPR0VSUigiRXJyb3Igc2V0dGluZyBwdGhyZWFkX2F0
-        dHJfc2V0c3RhY2tzaXplXG4iKTsKLQkJCQljbG9zZShwcm9ncmVzc19waXBlWzFdKTsKLQkJCQlf
-        ZXhpdCgtMSk7Ci0JCQl9Ki8KLQotCQkJLy8gQ3JlYXRlIHRocmVhZHMgZm9yIHRoZSBkaXZpZGVk
-        IHVwIGVuY3J5cHRpb24gbGlzdHMKKwkJCS8vIFNlcXVlbnRpYWwgZW5jcnlwdGVkIGJhY2t1cCAt
-        IGF2b2lkcyBmb3JrLWluLXB0aHJlYWQgZGVhZGxvY2sKIAkJCWZvciAoaSA9IHN0YXJ0X3RocmVh
-        ZF9pZDsgaSA8PSBjb3JlX2NvdW50OyBpKyspIHsKIAkJCQllbmNbaV0uc2V0ZGlyKHRhcmRpcik7
-        CiAJCQkJZW5jW2ldLnNldGZuKHRhcmZuKTsKQEAgLTMzOCw1MiArMzExLDE0IEBAIGludCB0d3Jw
-        VGFyOjpjcmVhdGVUYXJGb3JrKHBpZF90ICp0YXJfZm9ya19waWQpIHsKIAkJCQllbmNbaV0uc3Bs
-        aXRfYXJjaGl2ZXMgPSAxOwogCQkJCWVuY1tpXS5wcm9ncmVzc19waXBlX2ZkID0gcHJvZ3Jlc3Nf
-        cGlwZV9mZDsKIAkJCQllbmNbaV0ucGFydF9zZXR0aW5ncyA9IHBhcnRfc2V0dGluZ3M7Ci0JCQkJ
-        TE9HSU5GTygiU3RhcnQgZW5jcnlwdGlvbiB0aHJlYWQgJWlcbiIsIGkpOwotCQkJCXJldCA9IHB0
-        aHJlYWRfY3JlYXRlKCZlbmNfdGhyZWFkW2ldLCAmdGF0dHIsIGNyZWF0ZUxpc3QsICh2b2lkKikm
-        ZW5jW2ldKTsKLQkJCQlpZiAocmV0KSB7Ci0JCQkJCUxPR0lORk8oIlVuYWJsZSB0byBjcmVhdGUg
-        JWkgdGhyZWFkIGZvciBlbmNyeXB0aW9uISAlaVxuQ29udGludWluZyBpbiBzYW1lIHRocmVhZCAo
-        YmFja3VwIHdpbGwgYmUgc2xvd2VyKS5cbiIsIGksIHJldCk7Ci0JCQkJCWlmIChjcmVhdGVMaXN0
-        KCh2b2lkKikmZW5jW2ldKSAhPSAwKSB7Ci0JCQkJCQlMT0dJTkZPKCJFcnJvciBjcmVhdGluZyBl
-        bmNyeXB0ZWQgYmFja3VwICVpLlxuIiwgaSk7Ci0JCQkJCQlndWlfZXJyKCJiYWNrdXBfZXJyb3I9
-        RXJyb3IgY3JlYXRpbmcgYmFja3VwLiIpOwotCQkJCQkJY2xvc2UocHJvZ3Jlc3NfcGlwZVsxXSk7
-        Ci0JCQkJCQlfZXhpdCgtMSk7Ci0JCQkJCX0gZWxzZSB7Ci0JCQkJCQllbmNbaV0udGhyZWFkX2lk
-        ID0gaSArIDE7Ci0JCQkJCX0KLQkJCQl9Ci0JCQkJdXNsZWVwKDEwMDAwMCk7IC8vIE5lZWQgYSBz
-        aG9ydCBkZWxheSBiZWZvcmUgc3RhcnRpbmcgdGhlIG5leHQgdGhyZWFkIG9yIHRoZSB0aHJlYWRz
-        IHdpbGwgbmV2ZXIgZmluaXNoIGZvciBzb21lIHJlYXNvbi4KLQkJCX0KLQkJCWlmIChwdGhyZWFk
-        X2F0dHJfZGVzdHJveSgmdGF0dHIpKSB7Ci0JCQkJTE9HSU5GTygiRmFpbGVkIHRvIHB0aHJlYWRf
-        YXR0cl9kZXN0cm95XG4iKTsKLQkJCX0KLQkJCWZvciAoaSA9IHN0YXJ0X3RocmVhZF9pZDsgaSA8
-        PSBjb3JlX2NvdW50OyBpKyspIHsKLQkJCQlpZiAoZW5jW2ldLnRocmVhZF9pZCA9PSBpKSB7Ci0J
-        CQkJCWlmIChwdGhyZWFkX2pvaW4oZW5jX3RocmVhZFtpXSwgJnRocmVhZF9yZXR1cm4pKSB7Ci0J
-        CQkJCQlMT0dJTkZPKCJFcnJvciBqb2luaW5nIHRocmVhZCAlaVxuIiwgaSk7Ci0JCQkJCQlndWlf
-        ZXJyKCJiYWNrdXBfZXJyb3I9RXJyb3IgY3JlYXRpbmcgYmFja3VwLiIpOwotCQkJCQkJY2xvc2Uo
-        cHJvZ3Jlc3NfcGlwZVsxXSk7Ci0JCQkJCQlfZXhpdCgtMSk7Ci0JCQkJCX0gZWxzZSB7Ci0JCQkJ
-        CQlMT0dJTkZPKCJKb2luZWQgdGhyZWFkICVpLlxuIiwgaSk7Ci0JCQkJCQlyZXQgPSAoaW50KShp
-        bnRwdHJfdCl0aHJlYWRfcmV0dXJuOwotCQkJCQkJaWYgKHJldCAhPSAwKSB7Ci0JCQkJCQkJdGhy
-        ZWFkX2Vycm9yID0gMTsKLQkJCQkJCQlMT0dJTkZPKCJUaHJlYWQgJWkgcmV0dXJuZWQgYW4gZXJy
-        b3IgJWkuXG4iLCBpLCByZXQpOwotCQkJCQkJCWd1aV9lcnIoImJhY2t1cF9lcnJvcj1FcnJvciBj
-        cmVhdGluZyBiYWNrdXAuIik7Ci0JCQkJCQkJY2xvc2UocHJvZ3Jlc3NfcGlwZVsxXSk7Ci0JCQkJ
-        CQkJX2V4aXQoLTEpOwotCQkJCQkJfQotCQkJCQl9Ci0JCQkJfSBlbHNlIHsKLQkJCQkJTE9HSU5G
-        TygiU2tpcHBpbmcgam9pbmluZyB0aHJlYWQgJWkgYmVjYXVzZSBvZiBwdGhyZWFkIGZhaWx1cmUu
-        XG4iLCBpKTsKKwkJCQlMT0dJTkZPKCJDcmVhdGluZyBlbmNyeXB0ZWQgYmFja3VwIHNlZ21lbnQg
-        JWkgKHNlcXVlbnRpYWwpXG4iLCBpKTsKKwkJCQlpZiAoY3JlYXRlTGlzdCgodm9pZCopJmVuY1tp
-        XSkgIT0gMCkgeworCQkJCQlMT0dJTkZPKCJFcnJvciBjcmVhdGluZyBlbmNyeXB0ZWQgYmFja3Vw
-        ICVpLlxuIiwgaSk7CisJCQkJCWd1aV9lcnIoImJhY2t1cF9lcnJvcj1FcnJvciBjcmVhdGluZyBi
-        YWNrdXAuIik7CisJCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVbMV0pOworCQkJCQlfZXhpdCgtMSk7
-        CiAJCQkJfQogCQkJfQotCQkJaWYgKHRocmVhZF9lcnJvcikgewotCQkJCUxPR0lORk8oIkVycm9y
-        IHJldHVybmVkIGJ5IG9uZSBvciBtb3JlIHRocmVhZHMuXG4iKTsKLQkJCQlndWlfZXJyKCJiYWNr
-        dXBfZXJyb3I9RXJyb3IgY3JlYXRpbmcgYmFja3VwLiIpOwotCQkJCWNsb3NlKHByb2dyZXNzX3Bp
-        cGVbMV0pOwotCQkJCV9leGl0KC0xKTsKLQkJCX0KIAkJCUxPR0lORk8oIkZpbmlzaGVkIGVuY3J5
-        cHRlZCBiYWNrdXAuXG4iKTsKIAkJCWNsb3NlKHByb2dyZXNzX3BpcGVbMV0pOwogCQkJX2V4aXQo
-        MCk7CkBAIC01MTcsMTEgKzQ1Miw3IEBAIGludCB0d3JwVGFyOjpleHRyYWN0VGFyRm9yaygpIHsK
-        IAkJCQlzdHJpbmcgdGVtcDsKIAkJCQljaGFyIGFjdHVhbF9maWxlbmFtZVsyNTVdOwogCQkJCXR3
-        cnBUYXIgdGFyc1s5XTsKLQkJCQlwdGhyZWFkX3QgdGFyX3RocmVhZFs5XTsKLQkJCQlwdGhyZWFk
-        X2F0dHJfdCB0YXR0cjsKLQkJCQl1bnNpZ25lZCB0aHJlYWRfY291bnQgPSAwLCBpLCBzdGFydF90
-        aHJlYWRfaWQgPSAxOwotCQkJCWludCByZXQsIHRocmVhZF9lcnJvciA9IDA7Ci0JCQkJdm9pZCAq
-        dGhyZWFkX3JldHVybjsKKwkJCQl1bnNpZ25lZCBpLCBzdGFydF90aHJlYWRfaWQgPSAxOwogCiAJ
-        CQkJYmFzZWZuID0gdGFyZm47CiAJCQkJdGVtcCA9IGJhc2VmbiArICIlaSUwMmkiOwpAQCAtNTQ3
-        LDg1ICs0NzgsMjYgQEAgaW50IHR3cnBUYXI6OmV4dHJhY3RUYXJGb3JrKCkgewogCQkJCX0gZWxz
-        ZSB7CiAJCQkJCXN0YXJ0X3RocmVhZF9pZCA9IDA7CiAJCQkJfQotCQkJCS8vIFN0YXJ0IHRocmVh
-        ZGluZyBlbmNyeXB0ZWQgcmVzdG9yZXMKLQkJCQlpZiAocHRocmVhZF9hdHRyX2luaXQoJnRhdHRy
-        KSkgewotCQkJCQlMT0dJTkZPKCJVbmFibGUgdG8gcHRocmVhZF9hdHRyX2luaXRcbiIpOwotCQkJ
-        CQlndWlfZXJyKCJyZXN0b3JlX2Vycm9yPUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nlc3MuIik7
-        Ci0JCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwotCQkJCQlfZXhpdCgtMSk7Ci0JCQkJfQot
-        CQkJCWlmIChwdGhyZWFkX2F0dHJfc2V0ZGV0YWNoc3RhdGUoJnRhdHRyLCBQVEhSRUFEX0NSRUFU
-        RV9KT0lOQUJMRSkpIHsKLQkJCQkJTE9HSU5GTygiRXJyb3Igc2V0dGluZyBwdGhyZWFkX2F0dHJf
-        c2V0ZGV0YWNoc3RhdGVcbiIpOwotCQkJCQlndWlfZXJyKCJyZXN0b3JlX2Vycm9yPUVycm9yIGR1
-        cmluZyByZXN0b3JlIHByb2Nlc3MuIik7Ci0JCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwot
-        CQkJCQlfZXhpdCgtMSk7Ci0JCQkJfQotCQkJCWlmIChwdGhyZWFkX2F0dHJfc2V0c2NvcGUoJnRh
-        dHRyLCBQVEhSRUFEX1NDT1BFX1NZU1RFTSkpIHsKLQkJCQkJTE9HSU5GTygiRXJyb3Igc2V0dGlu
-        ZyBwdGhyZWFkX2F0dHJfc2V0c2NvcGVcbiIpOwotCQkJCQlndWlfZXJyKCJyZXN0b3JlX2Vycm9y
-        PUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nlc3MuIik7Ci0JCQkJCWNsb3NlKHByb2dyZXNzX3Bp
-        cGVfZmQpOwotCQkJCQlfZXhpdCgtMSk7Ci0JCQkJfQotCQkJCS8qaWYgKHB0aHJlYWRfYXR0cl9z
-        ZXRzdGFja3NpemUoJnRhdHRyLCA1MjQyODgpKSB7Ci0JCQkJCUxPR0VSUigiRXJyb3Igc2V0dGlu
-        ZyBwdGhyZWFkX2F0dHJfc2V0c3RhY2tzaXplXG4iKTsKLQkJCQkJY2xvc2UocHJvZ3Jlc3NfcGlw
-        ZV9mZCk7Ci0JCQkJCV9leGl0KC0xKTsKLQkJCQl9Ki8KKwkJCQkvLyBTZXF1ZW50aWFsIGVuY3J5
-        cHRlZCByZXN0b3JlIC0gYXZvaWRzIGZvcmstaW4tcHRocmVhZCBkZWFkbG9jawogCQkJCWZvciAo
-        aSA9IHN0YXJ0X3RocmVhZF9pZDsgaSA8IDk7IGkrKykgewogCQkJCQlzcHJpbnRmKGFjdHVhbF9m
-        aWxlbmFtZSwgdGVtcC5jX3N0cigpLCBpLCAwKTsKIAkJCQkJaWYgKFRXRnVuYzo6UGF0aF9FeGlz
-        dHMoYWN0dWFsX2ZpbGVuYW1lKSkgewotCQkJCQkJdGhyZWFkX2NvdW50Kys7CiAJCQkJCQl0YXJz
-        W2ldLmJhc2VmbiA9IGJhc2VmbjsKIAkJCQkJCXRhcnNbaV0uc2V0cGFzc3dvcmQocGFzc3dvcmQp
-        OwogCQkJCQkJdGFyc1tpXS50aHJlYWRfaWQgPSBpOwogCQkJCQkJdGFyc1tpXS5wcm9ncmVzc19w
-        aXBlX2ZkID0gcHJvZ3Jlc3NfcGlwZV9mZDsKIAkJCQkJCXRhcnNbaV0ucGFydF9zZXR0aW5ncyA9
-        IHBhcnRfc2V0dGluZ3M7Ci0JCQkJCQlMT0dJTkZPKCJDcmVhdGluZyBleHRyYWN0IHRocmVhZCBJ
-        RCAlaVxuIiwgaSk7Ci0JCQkJCQlyZXQgPSBwdGhyZWFkX2NyZWF0ZSgmdGFyX3RocmVhZFtpXSwg
-        JnRhdHRyLCBleHRyYWN0TXVsdGksICh2b2lkKikmdGFyc1tpXSk7Ci0JCQkJCQlpZiAocmV0KSB7
-        Ci0JCQkJCQkJTE9HSU5GTygiVW5hYmxlIHRvIGNyZWF0ZSAlaSB0aHJlYWQgZm9yIGV4dHJhY3Rp
-        b24hICVpXG5Db250aW51aW5nIGluIHNhbWUgdGhyZWFkIChyZXN0b3JlIHdpbGwgYmUgc2xvd2Vy
-        KS5cbiIsIGksIHJldCk7Ci0JCQkJCQkJaWYgKGV4dHJhY3RNdWx0aSgodm9pZCopJnRhcnNbaV0p
-        ICE9IDApIHsKLQkJCQkJCQkJTE9HSU5GTygiRXJyb3IgZXh0cmFjdGluZyBiYWNrdXAgaW4gdGhy
-        ZWFkICVpLlxuIiwgaSk7Ci0JCQkJCQkJCWd1aV9lcnIoInJlc3RvcmVfZXJyb3I9RXJyb3IgZHVy
-        aW5nIHJlc3RvcmUgcHJvY2Vzcy4iKTsKLQkJCQkJCQkJY2xvc2UocHJvZ3Jlc3NfcGlwZV9mZCk7
-        Ci0JCQkJCQkJCV9leGl0KC0xKTsKLQkJCQkJCQl9IGVsc2UgewotCQkJCQkJCQl0YXJzW2ldLnRo
-        cmVhZF9pZCA9IGkgKyAxOwotCQkJCQkJCX0KLQkJCQkJCX0KLQkJCQkJCXVzbGVlcCgxMDAwMDAp
-        OyAvLyBOZWVkIGEgc2hvcnQgZGVsYXkgYmVmb3JlIHN0YXJ0aW5nIHRoZSBuZXh0IHRocmVhZCBv
-        ciB0aGUgdGhyZWFkcyB3aWxsIG5ldmVyIGZpbmlzaCBmb3Igc29tZSByZWFzb24uCi0JCQkJCX0g
-        ZWxzZSB7Ci0JCQkJCQlicmVhazsKLQkJCQkJfQotCQkJCX0KLQkJCQlmb3IgKGkgPSBzdGFydF90
-        aHJlYWRfaWQ7IGkgPCB0aHJlYWRfY291bnQgKyBzdGFydF90aHJlYWRfaWQ7IGkrKykgewotCQkJ
-        CQlpZiAodGFyc1tpXS50aHJlYWRfaWQgPT0gaSkgewotCQkJCQkJaWYgKHB0aHJlYWRfam9pbih0
-        YXJfdGhyZWFkW2ldLCAmdGhyZWFkX3JldHVybikpIHsKLQkJCQkJCQlMT0dJTkZPKCJFcnJvciBq
-        b2luaW5nIHRocmVhZCAlaVxuIiwgaSk7CisJCQkJCQlMT0dJTkZPKCJFeHRyYWN0aW5nIGVuY3J5
-        cHRlZCBzZWdtZW50ICVpIChzZXF1ZW50aWFsKVxuIiwgaSk7CisJCQkJCQlpZiAoZXh0cmFjdE11
-        bHRpKCh2b2lkKikmdGFyc1tpXSkgIT0gMCkgeworCQkJCQkJCUxPR0lORk8oIkVycm9yIGV4dHJh
-        Y3RpbmcgZW5jcnlwdGVkIHNlZ21lbnQgJWkuXG4iLCBpKTsKIAkJCQkJCQlndWlfZXJyKCJyZXN0
-        b3JlX2Vycm9yPUVycm9yIGR1cmluZyByZXN0b3JlIHByb2Nlc3MuIik7CiAJCQkJCQkJY2xvc2Uo
-        cHJvZ3Jlc3NfcGlwZV9mZCk7CiAJCQkJCQkJX2V4aXQoLTEpOwotCQkJCQkJfSBlbHNlIHsKLQkJ
-        CQkJCQlMT0dJTkZPKCJKb2luZWQgdGhyZWFkICVpLlxuIiwgaSk7Ci0JCQkJCQkJcmV0ID0gKGlu
-        dCkoaW50cHRyX3QpdGhyZWFkX3JldHVybjsKLQkJCQkJCQlpZiAocmV0ICE9IDApIHsKLQkJCQkJ
-        CQkJdGhyZWFkX2Vycm9yID0gMTsKLQkJCQkJCQkJTE9HSU5GTygiVGhyZWFkICVpIHJldHVybmVk
-        IGFuIGVycm9yICVpLlxuIiwgaSwgcmV0KTsKLQkJCQkJCQkJZ3VpX2VycigicmVzdG9yZV9lcnJv
-        cj1FcnJvciBkdXJpbmcgcmVzdG9yZSBwcm9jZXNzLiIpOwotCQkJCQkJCQljbG9zZShwcm9ncmVz
-        c19waXBlX2ZkKTsKLQkJCQkJCQkJX2V4aXQoLTEpOwotCQkJCQkJCX0KIAkJCQkJCX0KIAkJCQkJ
-        fSBlbHNlIHsKLQkJCQkJCUxPR0lORk8oIlNraXBwaW5nIGpvaW5pbmcgdGhyZWFkICVpIGJlY2F1
-        c2Ugb2YgcHRocmVhZCBmYWlsdXJlLlxuIiwgaSk7CisJCQkJCQlicmVhazsKIAkJCQkJfQogCQkJ
-        CX0KLQkJCQlpZiAodGhyZWFkX2Vycm9yKSB7Ci0JCQkJCUxPR0lORk8oIkVycm9yIHJldHVybmVk
-        IGJ5IG9uZSBvciBtb3JlIHRocmVhZHMuXG4iKTsKLQkJCQkJZ3VpX2VycigicmVzdG9yZV9lcnJv
-        cj1FcnJvciBkdXJpbmcgcmVzdG9yZSBwcm9jZXNzLiIpOwotCQkJCQljbG9zZShwcm9ncmVzc19w
-        aXBlX2ZkKTsKLQkJCQkJX2V4aXQoLTEpOwotCQkJCX0KIAkJCQlMT0dJTkZPKCJGaW5pc2hlZCBl
-        bmNyeXB0ZWQgcmVzdG9yZS5cbiIpOwogCQkJCWNsb3NlKHByb2dyZXNzX3BpcGVfZmQpOwogCQkJ
-        CV9leGl0KDApOwo=
-        BASE64EOF
-        base64 -d /tmp/encryption-fixes.b64 > /tmp/encryption-fixes.patch
-        patch -p1 < /tmp/encryption-fixes.patch
-        echo "Encryption bug fixes applied successfully."
 
     - name: Check Manifest Branch
       uses: haya14busa/action-cond@v1
