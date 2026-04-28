@@ -162,6 +162,16 @@ jobs:
         fi
         echo "DEVICE_TREE_URL=${DEVICE_TREE_URL}" >> $GITHUB_ENV
 
+    - name: Debug Build Output
+      run: |
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        echo "=== Searching for recovery images ==="
+        find out -name "*.img" -type f 2>/dev/null || echo "No .img files found"
+        echo "=== Output directory contents ==="
+        ls -lR out/target/product/${{ github.event.inputs.DEVICE_NAME }}/ 2>/dev/null || echo "Directory does not exist"
+        echo "=== Build log tail ==="
+        tail -100 out/verbose.log 2>/dev/null || echo "No verbose.log found"
+
     - name: Check if Recovery Exist
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
