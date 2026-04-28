@@ -171,7 +171,7 @@ jobs:
             echo "MD5_IMG=$(md5sum out/target/product/${{ github.event.inputs.DEVICE_NAME }}/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.img | cut -d ' ' -f 1)" >> $GITHUB_ENV
         else
             echo "Recovery out directory is empty."
-            cd Exit
+            exit 1
         fi
 
     - name: Rename the Recovery
